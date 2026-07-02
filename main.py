@@ -8,7 +8,7 @@ class SimpleEditorApp:
 
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("万能ファイル閲覧機（モジュール分割版）")
+        self.root.title("シンプルファイル閲覧機（モジュール分割版）")
         self.root.geometry("950x650")
 
         # 設定と機能を読み込んで合体

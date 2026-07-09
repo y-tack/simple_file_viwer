@@ -1,55 +1,66 @@
 import configparser
 import os
-import tkinter as tk
-from tkinter import font as tkfont
 
 
 class AppConfig:
 
     def __init__(self):
-        # フォント設定（サイズは初期値、後ほど読み込み値で上書きされます）
-        self.default_font = tkfont.Font(family="Meiryo", size=11)
-        self.text_font = tkfont.Font(family="Meiryo", size=16)
-        self.h1_font = tkfont.Font(family="Meiryo", size=22, weight="bold")
-        self.h2_font = tkfont.Font(family="Meiryo", size=18, weight="bold")
-
-        # iniファイルのパス設定
+        # 設定を記憶しておく書類の名称
         self.ini_filename = "settings.ini"
 
-    def setup_tags(self, text_area):
-        # テキストエリアの見た目（色やスタイル）のルール設定
-        text_area.tag_config("number_blue", foreground="blue")
-        text_area.tag_config("md_h1", font=self.h1_font, foreground="purple")
-        text_area.tag_config("md_h2", font=self.h2_font, foreground="#555555")
-        text_area.tag_config("md_quote", foreground="green")
-        text_area.tag_config("search_match", background="yellow", foreground="black")
-
-    def load_settings(self):
-        """settings.ini から設定を読み込む（ファイルがなければ初期値を返す）"""
-        config = configparser.ConfigParser()
-        current_dir = ""
-        wrap_num = "25"  # 初期値は25文字[cite: 5, 6]
-        font_size = "16" # 初期値は16pt[cite: 5, 6]
-
+    def _read_without_double_slash(self):
+        """書類から読み込み、//以降の注釈を削り落とした文字データを返す"""
+        cleaned_lines = []
         if os.path.exists(self.ini_filename):
             try:
-                config.read(self.ini_filename, encoding="utf-8")
-                if "Settings" in config:
-                    current_dir = config["Settings"].get("current_dir", "")
-                    wrap_num = config["Settings"].get("wrap_num", "25")
-                    font_size = config["Settings"].get("font_size", "16")
+                with open(self.ini_filename, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if "//" in line:
+                            line = line.split("//")[0] + "\n"
+                        cleaned_lines.append(line)
             except Exception:
                 pass
-        return current_dir, wrap_num, font_size
+        return "".join(cleaned_lines)
+
+    def load_settings(self):
+        """設定の読み込み処理を専門の部品に丸投げして実行する"""
+        # 互いに読み込み合うことによる不具合を防ぐため、ここで引き込みます
+        from config_loader import ConfigLoader
+
+        loader = ConfigLoader(
+            self.ini_filename, self._read_without_double_slash
+        )
+        return loader.execute_load()
 
     def save_settings(self, current_dir, wrap_num, font_size):
-        """settings.ini へ現在の設定を保存する"""
-        config = configparser.ConfigParser()
-        config["Settings"] = {
-            "current_dir": current_dir,
-            "wrap_num": wrap_num,
-            "font_size": font_size
-        }
+        """現在の位置や数値を、既存の注釈や色情報の区分を壊さずに保存する"""
+        # 色情報の特殊な記述を壊さずに読み込むため、値なしの行を許可して初期化します
+        config = configparser.ConfigParser(
+            comment_prefixes=("#", ";"), allow_no_value=True
+        )
+
+        ini_data = self._read_without_double_slash()
+        if ini_data:
+            try:
+                config.read_string(ini_data)
+            except Exception:
+                pass
+
+        # 設定保存時に [App] 区分と版番号が消えないように維持する
+        if "App" not in config:
+            config["App"] = {}
+        if "version" not in config["App"]:
+            config["App"]["version"] = "0.07.06"
+
+        # [Settings] 区分がなければ新しく作成する
+        if "Settings" not in config:
+            config["Settings"] = {}
+
+        # 現在の値を安全に代入する
+        config["Settings"]["current_dir"] = current_dir
+        config["Settings"]["wrap_num"] = str(wrap_num)
+        config["Settings"]["font_size"] = str(font_size)
+
         try:
             with open(self.ini_filename, "w", encoding="utf-8") as f:
                 config.write(f)

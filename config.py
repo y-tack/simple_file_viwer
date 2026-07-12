@@ -1,4 +1,3 @@
-import configparser
 import os
 
 
@@ -24,7 +23,6 @@ class AppConfig:
 
     def load_settings(self):
         """設定の読み込み処理を専門の部品に丸投げして実行する"""
-        # 互いに読み込み合うことによる不具合を防ぐため、ここで引き込みます
         from config_loader import ConfigLoader
 
         loader = ConfigLoader(
@@ -33,36 +31,52 @@ class AppConfig:
         return loader.execute_load()
 
     def save_settings(self, current_dir, wrap_num, font_size):
-        """現在の位置や数値を、既存の注釈や色情報の区分を壊さずに保存する"""
-        # 色情報の特殊な記述を壊さずに読み込むため、値なしの行を許可して初期化します
-        config = configparser.ConfigParser(
-            comment_prefixes=("#", ";"), allow_no_value=True
-        )
-
-        ini_data = self._read_without_double_slash()
-        if ini_data:
+        """【改良】既存の特殊な色情報やエディタ情報を絶対に壊さずに、[Settings] のみ安全に上書きする"""
+        lines = []
+        if os.path.exists(self.ini_filename):
             try:
-                config.read_string(ini_data)
+                with open(self.ini_filename, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
             except Exception:
                 pass
 
-        # 設定保存時に [App] 区分と版番号が消えないように維持する
-        if "App" not in config:
-            config["App"] = {}
-        if "version" not in config["App"]:
-            config["App"]["version"] = "0.07.06"
+        new_lines = []
+        in_settings = False
+        replaced = False
 
-        # [Settings] 区分がなければ新しく作成する
-        if "Settings" not in config:
-            config["Settings"] = {}
+        for line in lines:
+            stripped = line.strip()
+            
+            # 別の区分が始まったら設定区分の監視を終了する
+            if stripped.startswith("[") and stripped.endswith("]"):
+                if stripped == "[Settings]":
+                    in_settings = True
+                    new_lines.append(line)
+                    # [Settings] の直後に新しい設定値を一括で書き出します
+                    new_lines.append(f"current_dir = {current_dir}\n")
+                    new_lines.append(f"wrap_num = {wrap_num}\n")
+                    new_lines.append(f"font_size = {font_size}\n")
+                    replaced = True
+                    continue
+                else:
+                    in_settings = False
 
-        # 現在の値を安全に代入する
-        config["Settings"]["current_dir"] = current_dir
-        config["Settings"]["wrap_num"] = str(wrap_num)
-        config["Settings"]["font_size"] = str(font_size)
+            # 設定区分のなかにいる間は、元の古い設定行（=を含む行）を無視して飛ばします
+            if in_settings:
+                if "=" in line:
+                    continue
+            
+            new_lines.append(line)
+
+        # もし書類のなかに [Settings] 区分がそもそも見つからなかった場合の安全装置
+        if not replaced:
+            new_lines.append("\n[Settings]\n")
+            new_lines.append(f"current_dir = {current_dir}\n")
+            new_lines.append(f"wrap_num = {wrap_num}\n")
+            new_lines.append(f"font_size = {font_size}\n")
 
         try:
             with open(self.ini_filename, "w", encoding="utf-8") as f:
-                config.write(f)
+                f.writelines(new_lines)
         except Exception:
             pass

@@ -11,7 +11,7 @@ class EditorClickActions:
         self.funcs = funcs
 
     def select_folder(self):
-        """「フォルダを選択」の処理"""
+        """「フォルダーを選択」の処理"""
         folder_selected = filedialog.askdirectory()
         if not folder_selected:
             return
@@ -152,45 +152,13 @@ class EditorClickActions:
         self.funcs.app.file_listbox.selection_clear(0, tk.END)
 
     def open_setting_dialog(self):
-        """「設定変更」の処理"""
+        """【改良】別窓プログラムではなく、大元の画面内から設定画面を直接開く処理"""
         try:
-            subprocess.run(["python", "setting_dialog.py"])
-            (
-                saved_version,
-                saved_dir,
-                saved_wrap,
-                saved_size,
-                theme_list,
-                editor_list,
-            ) = self.funcs.app.config_manager.load_settings()
-
-            # 新しく読み込んだ設定を変数にしっかり上書き
-            self.funcs.version = saved_version
-            self.funcs.wrap_chars = (
-                int(saved_wrap) if str(saved_wrap).isdigit() else 25
-            )
-            self.funcs.font_size = (
-                int(saved_size) if str(saved_size).isdigit() else 16
-            )
-
-            # 【新設】設定ファイルから新しく読み込まれた配色情報を確実に同期させます
-            if theme_list:
-                self.funcs.color_themes = theme_list
-                if self.funcs.app.color_combo:
-                    self.funcs.app.color_combo["values"] = [t[0] for t in theme_list]
-
-            self.funcs.app.text_area.config(font=("Meiryo", self.funcs.font_size))
-            self.funcs.app.line_num_area.config(font=("Meiryo", self.funcs.font_size))
-
-            # 設定画面から戻ったタイミングで、題名欄の版番号表記も連動更新する
-            if self.funcs.last_opened_file:
-                file_name = os.path.basename(self.funcs.last_opened_file)
-                self.funcs.display_file_content(
-                    self.funcs.last_opened_file, file_name
-                )
-            else:
-                # 書類を開いていない状態なら、すっきりした初期題名に同期
-                self.update_title("clear")
+            # 互いに読み込み合う不具合を防ぐため、ここで main.py からクラスを引き込みます
+            from main import SettingDialog
+            
+            # 設定画面を親画面（大元）の上に作成して表示します
+            SettingDialog(self.funcs.app.root, self.funcs)
 
         except Exception as e:
             messagebox.showerror("エラー", f"設定画面の起動に失敗:\n{e}")

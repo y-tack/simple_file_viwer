@@ -6,6 +6,102 @@ from editor_functions import EditorFunctions
 from file_processor import FileProcessor
 
 
+class SettingDialog:
+    """大元の画面の上に重ねて表示する、設定変更専用の小さな画面クラス"""
+
+    def __init__(self, parent, funcs):
+        self.parent = parent
+        self.funcs = funcs
+
+        # 親画面（大元）の真上に新しい窓を作成します
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("設定変更")
+        self.dialog.geometry("350x250")
+        
+        # 設定画面が開いている間、大元の画面の操作を受け付けないように固定します
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+
+        # 画面内の文字や枠の配置
+        label_title = tk.Label(self.dialog, text="◆ 環境設定の変更 ◆", font=("Meiryo", 11, "bold"))
+        label_title.pack(pady=10)
+
+        # ① 文字の大きさ変更用の外枠
+        frame_size = tk.LabelFrame(self.dialog, text="① 文字の大きさ変更", font=("Meiryo", 9), padx=10, pady=5)
+        frame_size.pack(fill=tk.X, padx=15, pady=5)
+
+        tk.Label(frame_size, text="数値(10-40):", font=("Meiryo", 9)).pack(side=tk.LEFT)
+        self.entry_size = tk.Entry(frame_size, width=8, font=("Meiryo", 9))
+        self.entry_size.insert(0, str(self.funcs.font_size))
+        self.entry_size.pack(side=tk.LEFT, padx=5)
+
+        btn_size_apply = tk.Button(frame_size, text="変更", font=("Meiryo", 9), command=self._apply_font_size)
+        btn_size_apply.pack(side=tk.LEFT, padx=5)
+
+        # ② 折り返し桁数変更用の外枠
+        frame_wrap = tk.LabelFrame(self.dialog, text="② 折り返しの桁数変更", font=("Meiryo", 9), padx=10, pady=5)
+        frame_wrap.pack(fill=tk.X, padx=15, pady=5)
+
+        tk.Label(frame_wrap, text="桁数(1-200):", font=("Meiryo", 9)).pack(side=tk.LEFT)
+        self.entry_wrap = tk.Entry(frame_wrap, width=8, font=("Meiryo", 9))
+        self.entry_wrap.insert(0, str(self.funcs.wrap_chars))
+        self.entry_wrap.pack(side=tk.LEFT, padx=5)
+
+        btn_wrap_apply = tk.Button(frame_wrap, text="変更", font=("Meiryo", 9), command=self._apply_wrap_num)
+        btn_wrap_apply.pack(side=tk.LEFT, padx=5)
+
+        # 画面を閉じるためのボタン
+        btn_close = tk.Button(self.dialog, text="設定画面を閉じる", font=("Meiryo", 10), command=self.dialog.destroy)
+        btn_close.pack(pady=10)
+
+    def _apply_font_size(self):
+        """入力された数値を確かめ、文字の大きさを安全に変更して保存する"""
+        val = self.entry_size.get().strip()
+        if not val.isdigit():
+            messagebox.showwarning("注意", "正しい数値を入力してください。")
+            return
+        
+        size = int(val)
+        if not (10 <= size <= 40):
+            messagebox.showwarning("制限", "文字の大きさは 10 から 40 の間で指定してください。")
+            return
+
+        # 司令塔の数値を書き換えて設定ファイルへ保存します
+        self.funcs.font_size = size
+        self.funcs.app.config_manager.save_settings(
+            self.funcs.current_dir, self.funcs.wrap_chars, self.funcs.font_size
+        )
+        # 即座に画面全体の文字の大きさを書き換えます
+        self.funcs.app.text_area.config(font=("Meiryo", size))
+        self.funcs.app.line_num_area.config(font=("Meiryo", size))
+        messagebox.showinfo("成功", f"文字の大きさを {size} に変更しました。")
+
+    def _apply_wrap_num(self):
+        """入力された数値を確かめ、折り返し桁数を安全に変更して保存する"""
+        val = self.entry_wrap.get().strip()
+        if not val.isdigit():
+            messagebox.showwarning("注意", "正しい数値を入力してください。")
+            return
+        
+        wrap = int(val)
+        if not (1 <= wrap <= 200):
+            messagebox.showwarning("制限", "折り返し桁数は 1 から 200 の間で指定してください。")
+            return
+
+        # 司令塔の数値を書き換えて設定ファイルへ保存します
+        self.funcs.wrap_chars = wrap
+        self.funcs.app.config_manager.save_settings(
+            self.funcs.current_dir, self.funcs.wrap_chars, self.funcs.font_size
+        )
+        
+        # 画面に文章が開かれている場合は、新しい桁数で綺麗に再配置します
+        if self.funcs.last_opened_file:
+            file_name = os.path.basename(self.funcs.last_opened_file)
+            self.funcs.display_file_content(self.funcs.last_opened_file, file_name)
+        
+        messagebox.showinfo("成功", f"折り返し桁数を {wrap}文字 に変更しました。")
+
+
 class EasyViewerApp:
 
     def __init__(self):
